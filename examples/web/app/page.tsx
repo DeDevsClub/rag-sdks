@@ -6,58 +6,50 @@ import PromptSuggestionRow from "@/components/suggestions-row";
 import LoadingBubble from "@/components/loading-bubble";
 
 export default function Home() {
-  const { messages, input, handleInputChange, handleSubmit } = useChat({
-    api: '/api/chat',
-  })
+  const { append, status, messages, input, handleInputChange, handleSubmit } = useChat()
+
+  const noMessages = messages.length === 0;
 
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+      <main 
+      // className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start"
+      >
+        <div className="flex flex-cols text-xl font-bold items-center justify-center bg-[#383838] text-white p-2 border rounded w-full text-center gap-[32px]">
         <Image
-          className="dark object-cover w-full h-[600px]"
-          src="/hero.svg"
+          // className="dark object-cover w-full h-[600px]"
+          src="/logo.png"
           alt="Next.js logo"
-          width={3200}
-          height={2400}
+          width={36}
+          height={36}
           priority
         />
-
-        {messages.length === 0 && (
+        Custom RAG Chat Workspace
+        </div>
+      <section 
+        className={noMessages ? "" : "populated"}
+      >
+        {noMessages ? (
+            <p className="starter-text">
+              Welcome to your custom RAG Chat space, where you are able to query your custom data.
+              <br />
+              {/* <PromptSuggestionRow /> */}
+            </p>
+        ) : (
           <div>
-            {/* <p className="text-md font-bold text-center bg-gray-200 p-4 rounded-lg border text-gray-600 w-full mx-auto justify-center">Ask a question</p> */}
-            <PromptSuggestionRow />
+            {status === 'streaming' && <LoadingBubble />}
           </div>
         )}
 
-        <div className="flex flex-col gap-4">
-          <LoadingBubble />
-          {/* {messages.map((message) => (
-            <div
-            key={message.id}
-            className={`p-4 rounded-lg ${
-              message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-200'
-            }`}
-            >
-              {message.content}
-            </div>
-          ))} */}
-
-          {/* <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              value={input}
-              onChange={handleInputChange}
-              placeholder="Ask a question..."
-              className="flex-1 p-2 border rounded-lg"
-            />
-            <button
-              type="submit"
-              className="p-2 bg-blue-500 text-white rounded-lg"
-            >
-              Ask
-            </button>
-          </form> */}
-        </div>
+      </section>
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <input
+          value={input}
+          onChange={handleInputChange}
+          placeholder="Ask a question..."
+          className={'question-box'}
+          />
+         <input type="submit" />
+      </form>
       </main>
-    </div>
   );
 }
