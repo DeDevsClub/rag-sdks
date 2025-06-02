@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "seed": "ts-node scripts/seed.ts"
+    "seed": "ts-node scripts/seed.ts",
+    "update": "ts-node scripts/update.ts"
   },
   "keywords": [
     "rag",
