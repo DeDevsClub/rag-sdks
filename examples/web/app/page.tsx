@@ -8,6 +8,7 @@ import { Bubble, LoadingBubble } from "@/components/bubbles";
 export default function Home() {
   const { append, status, messages, input, handleInputChange, handleSubmit } =
     useChat();
+  const noMessages = !messages || messages.length === 0;
 
   const handlePrompt = (promptText: string) => {
     const msg: Message = {
@@ -25,7 +26,6 @@ export default function Home() {
     >
       <div className="flex flex-cols text-xl font-bold items-center justify-center bg-[#383838] text-white p-2 border rounded w-full text-center gap-[32px]">
         <Image
-          // className="dark object-cover w-full h-[600px]"
           src="/logo.png"
           alt="Next.js logo"
           width={36}
@@ -34,8 +34,8 @@ export default function Home() {
         />
         Custom RAG Chat Workspace
       </div>
-      <section className={!messages ? "" : "populated"}>
-        {!messages ? (
+      <section className={noMessages ? "" : "populated"}>
+        {noMessages ? (
           <p className="starter-text">
             Welcome to your custom RAG Chat space, where you are able to query
             your custom data.
@@ -44,8 +44,10 @@ export default function Home() {
           </p>
         ) : (
           <div>
-            <LoadingBubble />
-            {/* {status === 'streaming' && <LoadingBubble />} */}
+            {status === "streaming" && <LoadingBubble />}
+            {messages.map((message) => (
+              <Bubble key={message.id} message={message} />
+            ))}
           </div>
         )}
       </section>

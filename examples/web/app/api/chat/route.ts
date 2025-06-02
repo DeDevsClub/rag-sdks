@@ -4,12 +4,11 @@ import { CoreMessage, streamText } from "ai";
 import { DataAPIClient } from "@datastax/astra-db-ts";
 // Loads environment variables from .env file
 import "dotenv/config";
-// Official OpenAI Node.js SDK, used here for generating embeddings
-import OpenAI from "openai";
 // Type definitions for OpenAI chat completion messages (used for system prompt construction)
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 // Vercel AI SDK's OpenAI provider for seamless integration with streamText
 import { openai } from "@ai-sdk/openai";
+import { OpenAI } from "openai";
 
 // --- Environment Variable Setup ---
 // Retrieve environment variables and ensure they are defined.
@@ -50,7 +49,7 @@ const db = client.db(ASTRA_DB_API_ENDPOINT!);
 // --- API Route Handler (POST) ---
 // This default export handles POST requests to the /api/chat endpoint.
 // It's designed to process incoming chat messages, retrieve context, and stream responses.
-export default async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   try {
     // Parse the JSON request body to extract the 'messages' array.
     // These messages are expected to conform to the Vercel AI SDK's CoreMessage type.
@@ -151,7 +150,7 @@ QUESTION: ${latestMessageContent}
     });
     // Return the AI's response as a streaming Next.js Response.
     // The `stream.response` property directly provides a compatible Response object for Next.js App Router.
-    return stream.response;
+    return stream.toDataStreamResponse();
   } catch (error) {
     console.error("Error in POST /api/chat:", error); // Log the unexpected error.
     // Return a generic 500 Internal Server Error response to the client.

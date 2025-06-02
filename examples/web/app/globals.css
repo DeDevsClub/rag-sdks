@@ -16,12 +16,15 @@ body {
 
 main {
   width: 80vw; height: 80vh;
-  background: linear-gradient(to bottom, #f8f8f8, #cfcfcf);
+  /* background: linear-gradient(to bottom, #f8f8f8, #cfcfcf); */
+  background-color: #383838;
   border-radius: 15px; display: flex;
   align-items: center; flex-direction: column; justify-content: space-between;
   padding: 20px;
   text-align: center;
-  color: #383838;
+  color: #ffffff;
+  scrollbar-width: thin;
+  scrollbar-color: #383838 #383838;
 }
 
 section {
@@ -39,6 +42,7 @@ section.populated {
 .starter-text {
   padding: 0 80px;
 }
+
 form {
   height: 50px;
   width: 100%;
@@ -53,8 +57,9 @@ input.question-box {
   width: 85%;
   padding: 10px;
   font-size: 15px;
-  color: #383838;
+  color: #411b8d;
   border: none;
+  background-color: #ffffff;
 }
 
 input[type=submit] {
