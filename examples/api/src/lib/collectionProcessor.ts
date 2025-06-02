@@ -1,15 +1,11 @@
 import { DataAPIClient, Db } from "@datastax/astra-db-ts";
-import OpenAI from "openai";
+// import OpenAI from "openai";
 import axios from "axios";
 import { JSDOM } from "jsdom";
-import { config } from "./configLoader.js"; // Using .js due to ESM module resolution in Node
-
-// Assuming SDKDocument and OpenAIEmbeddingAdapter are part of your main RAG SDK
-// Adjust the import path as necessary if your RAG SDK is structured differently or installed as a package.
-// For a local monorepo setup, it might be like '../../../../src'
-import { Document } from "../config/data-loader.js";
-import { OpenAIEmbeddingAdapter } from "src/scripts/reset.js";
-// import { OpenAIEmbeddingAdapter } from "../config/vector-store.js"; // Added for OpenAIEmbeddingAdapter
+import { config } from "./configLoader";
+import { Document } from "../../../../src/index";
+import { OpenAIEmbeddingAdapter } from "../config/openai-adapter";
+import { VectorStore } from "../config/vector-store";
 
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 200;
@@ -82,7 +78,11 @@ export async function processCollectionLogic({
     )}`
   );
 
-  const embeddingAdapter = new OpenAIEmbeddingAdapter(config.openaiApiKey);
+  const embeddingAdapter = new OpenAIEmbeddingAdapter(
+    config.openaiApiKey!,
+    config.openaiEmbeddingModelName!
+    // name: 'OpenAIEmbeddings', // Add if your SDK's adapter takes a name
+  );
 
   const embeddingDimension = embeddingAdapter.dimensions;
   if (!embeddingDimension) {
@@ -122,7 +122,6 @@ export async function processCollectionLogic({
     );
     await db.createCollection(collectionName, {
       vector: { dimension: embeddingDimension, metric: "cosine" },
-      // checkExists: operation !== "reset", // For reset, we expect it to be gone or fail if it's there with wrong config
     });
     console.log(`Collection '${collectionName}' ensured/created.`);
   } catch (e: any) {
@@ -131,17 +130,15 @@ export async function processCollectionLogic({
     );
   }
 
-  // Assuming AstraDBStore is correctly imported and set up from your SDK
-  // This part might need adjustment based on how AstraDBStore is implemented in your main SDK src
-  const { VectorStore } = await import("../config/vector-store.js"); // Dynamic import for ESM
+  // AstraDBStore is now imported statically from the main SDK
   const vectorStore = new VectorStore({
-    provider: "datastax_astra",
+    provider: 'datastax_astra',
     token: config.astraDbApplicationToken,
     endpoint: config.astraDbApiEndpoint,
-    collectionName,
+    collectionName: collectionName,
     keyspace: config.astraDbKeyspace,
-    embeddingDimension,
-  });
+    embeddingDimension: embeddingDimension,
+  }, embeddingAdapter);
 
   let allSdkDocuments: Document[] = [];
   for (const url of urlsToProcess) {
