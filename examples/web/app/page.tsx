@@ -36,12 +36,14 @@ export default function Home() {
       </div>
       <section className={noMessages ? "" : "populated"}>
         {noMessages ? (
+          <>
           <p className="starter-text">
             Welcome to your custom RAG Chat space, where you are able to query
             your custom data.
             <br />
-            <PromptSuggestionRow onPromptClick={handlePrompt} />
           </p>
+          <PromptSuggestionRow onPromptClick={handlePrompt} />
+          </>
         ) : (
           <div>
             {status === "streaming" && <LoadingBubble />}
