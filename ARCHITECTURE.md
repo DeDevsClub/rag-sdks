@@ -87,4 +87,115 @@ The RAG SDK will provide modules, classes, and functions to cover these core are
 -   `PromptTemplate`: For constructing prompts.
 -   `RAGChain`/`RAGPipeline`: To orchestrate the end-to-end process.
 
+## Visualizing the Architecture
+
+### High-Level RAG Flow
+
+This diagram illustrates the typical sequence of operations in a RAG system built with this SDK:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Application
+    participant RAGSDK as RAG SDK
+    participant VectorStore as Vector Store
+    participant LLMService as LLM Service
+
+    User->>Application: Submits Query
+    Application->>RAGSDK: processQuery(query)
+    RAGSDK->>RAGSDK: Embed Query (using EmbeddingModel)
+    RAGSDK->>VectorStore: Search Relevant Chunks (via Retriever)
+    VectorStore-->>RAGSDK: Returns Chunks
+    RAGSDK->>RAGSDK: Construct Prompt (Context + Query, using PromptTemplate)
+    RAGSDK->>LLMService: Generate Response (via LLM interface)
+    LLMService-->>RAGSDK: Returns LLM Response (potentially streamed)
+    RAGSDK-->>Application: Formatted Response
+    Application-->>User: Displays Response
+```
+
+### SDK Component Interactions
+
+This diagram shows the main components of the SDK and their relationships:
+
+
+
+```mermaid
+graph TD
+    subgraph "User Application Layer"
+        App[User Application / UI]
+    end
+
+    subgraph "RAG SDK Core Abstractions"
+        P[RAGPipeline / RAGChain Orchestrator]
+        L[Loader/DataSource]
+        TS[TextSplitter/Chunker]
+        EM[EmbeddingModel Interface]
+        VSI[VectorStore Interface]
+        R[Retriever]
+        PT[PromptTemplate]
+        LLM_IF[LLM Interface]
+    end
+
+    subgraph "External Services & Data"
+        SRC["Data Sources (Files, URLs, APIs)"]
+        EMB["Embedding Model Provider (e.g., OpenAI)"]
+        VS["Vector Store (e.g., AstraDB Client)"]
+        LLM["LLM Provider (e.g., OpenAI via Vercel AI SDK)"]
+    end
+
+    App --> P
+    P --> L
+    P --> TS
+    P --> EM
+    P --> VSI
+    P --> R
+    P --> PT
+    P --> LLM_IF
+
+    L --> SRC
+    EM --> EMB
+    VSI --> VS
+    R --> VSI
+    PT --> R
+    LLM_IF --> LLM
+```
+
+## Audience Perspectives
+
+### For Solution Architects
+
+-   **System Integration:** The SDK is designed to be a modular component within a larger application. Key integration points include the `RAGPipeline` (or equivalent orchestrator) for processing queries, `DataLoader` for ingesting data from various enterprise sources, and `VectorStore` / `LLM` interfaces for connecting to preferred backend services.
+-   **Technology Choices & Flexibility:** The SDK promotes a decoupled architecture. While examples might use specific technologies (like OpenAI, Astra DB, Vercel AI SDK), the core interfaces (`EmbeddingModel`, `VectorStore`, `LLM`) are designed to be adaptable. Architects can guide the implementation of custom adapters for different embedding models, vector databases (e.g., on-premise solutions), or LLMs.
+-   **Scalability & Performance:** Consider the scalability of chosen vector store and LLM providers. For data ingestion, the chunking strategy and embedding process can be parallelized or batched. Caching mechanisms (as mentioned in Core Components) can be critical for performance and cost optimization at scale.
+-   **Security:** API keys and sensitive configurations should be managed securely (e.g., via environment variables, secrets management systems). Data flow, especially with external services, needs to comply with security policies.
+-   **Deployment:** The SDK itself is a library. The application using the SDK (like the `examples/web` Next.js app) will have its own deployment considerations (e.g., Vercel, Docker, Kubernetes).
+
+### For Developers (SDK Users & Contributors)
+
+-   **Core API:** The primary interaction point will likely be the `RAGPipeline` or a similar high-level orchestrator. Developers will configure this pipeline with specific implementations of `DataLoader`, `VectorStore`, `EmbeddingModel`, and `LLM`.
+-   **Ease of Use:** The conceptual examples (e.g., `new sdk.RAGPipeline(...)`) showcase the intended simplicity for common use cases. The SDK aims to abstract boilerplate for connecting to services, managing data flow, and constructing prompts.
+-   **Extensibility:**
+    -   **Custom DataLoaders:** Implement the `Loader` interface to support new data sources.
+    -   **VectorStore Adapters:** Implement the `VectorStore` interface to integrate with different vector databases.
+    -   **Embedding Models:** Wrap various embedding API clients with the `EmbeddingModel` interface.
+    -   **LLM Wrappers:** Implement the `LLM` interface for new language model providers or custom logic.
+-   **TypeScript & Modularity:** The SDK is built with TypeScript, providing strong typing and better developer experience. Code is organized into modules for clear separation of concerns.
+-   **Examples as Guidance:** The `examples/web` application serves as a practical, end-to-end reference for using the SDK's principles in a real application, including handling streaming and frontend integration.
+
+### For Project Managers
+
+-   **Value Proposition:** This SDK accelerates the development of RAG-powered applications by providing pre-built, reusable components and abstracting common complexities. This reduces time-to-market for features like semantic search, Q&A over custom documents, and intelligent chatbots.
+-   **Key Capabilities:**
+    -   Ingestion from various data sources.
+    -   Automated text chunking and embedding.
+    -   Integration with multiple vector stores and LLMs (via interfaces).
+    -   Orchestration of the retrieval and generation process.
+    -   Support for modern development practices (TypeScript, environment-based configuration).
+-   **Project Impact:** Enables teams to focus on domain-specific logic and user experience rather than low-level RAG plumbing. Facilitates experimentation with different models and data sources.
+-   **Development Phases (Potential):**
+    1.  **Core SDK Development:** Building out the stable interfaces and core components.
+    2.  **Connector/Adapter Implementation:** Adding support for specific data sources, vector stores, and LLMs required by target projects.
+    3.  **Application Integration:** Integrating the SDK into end-user applications (e.g., internal knowledge bases, customer support bots).
+-   **Resource Management:** While the SDK simplifies development, projects will still require resources for data preparation, API costs (OpenAI, LLMs), vector database hosting, and application development.
+
 This SDK aims to lower the barrier to entry for building robust and customizable RAG applications by abstracting away much of the underlying complexity while still offering flexibility for advanced users.
