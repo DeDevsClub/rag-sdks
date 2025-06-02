@@ -1,0 +1,40 @@
+{
+  "name": "@dedevsclub/rag-sdk",
+  "version": "0.0.1",
+  "description": "RAG SDK implementation in TypeScript",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "seed": "ts-node scripts/seed.ts"
+  },
+  "keywords": [
+    "rag",
+    "sdk",
+    "typescript",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@datastax/astra-db-ts": "^2.0.1",
+    "@langchain/community": "^0.3.45",
+    "dotenv": "^16.5.0",
+    "langchain": "^0.3.27",
+    "next": "^15.3.3",
+    "openai": "^5.0.1",
+    "puppeteer": "^24.9.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  }
+}
