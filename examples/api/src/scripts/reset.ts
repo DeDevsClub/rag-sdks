@@ -32,7 +32,7 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // --- OpenAI Embedding Adapter --- 
 // (Similar to the one in scripts/test.ts or could be imported if centralized)
-class OpenAIEmbeddingAdapter implements EmbeddingModel {
+export class OpenAIEmbeddingAdapter implements EmbeddingModel {
   private openai: OpenAI;
   public dimensions: number;
   public modelName: string;

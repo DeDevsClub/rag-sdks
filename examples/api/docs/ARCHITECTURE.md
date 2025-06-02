@@ -39,7 +39,7 @@ The example API is implemented using Next.js API Routes, which provides a simple
     ```json
     {
       "status": "success",
-      "message" s: "Collection 'my_custom_collection' seeded successfully.",
+      "message": "Collection 'my_custom_collection' seeded successfully.",
       "collectionName": "my_custom_collection"
     }
     ```

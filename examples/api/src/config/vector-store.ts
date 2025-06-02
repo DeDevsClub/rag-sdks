@@ -1,5 +1,5 @@
 // src/vector-store.ts
-import { Document } from './data-loader';
+import { Document } from './data-loader.js';
 import { DataAPIClient, Collection as AstraCollection } from '@datastax/astra-db-ts';
 
 // --- Configuration Interfaces ---
