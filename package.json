@@ -10,7 +10,8 @@
     "dev": "ts-node src/index.ts",
     "test": "ts-node scripts/test.ts",
     "seed": "ts-node scripts/seed.ts",
-    "update": "ts-node scripts/update.ts"
+    "update": "ts-node scripts/update.ts",
+    "reset": "ts-node scripts/reset.ts"
   },
   "keywords": [
     "rag",
@@ -26,7 +27,9 @@
     "@datastax/astra-db-ts": "^2.0.1",
     "@langchain/community": "^0.3.45",
     "ai": "^4.3.16",
+    "axios": "^1.9.0",
     "dotenv": "^16.5.0",
+    "jsdom": "^26.1.0",
     "langchain": "^0.3.27",
     "next": "^15.3.3",
     "openai": "^5.0.1",
@@ -35,6 +38,7 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@types/jsdom": "^21.1.7",
     "@types/node": "^22",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",

@@ -13,43 +13,45 @@ import { DataAPIClient } from '@datastax/astra-db-ts'; // Corrected import based
 // Assuming the common pattern used in other project files like seed.ts is intended:
 
 // --- Environment Variable Validation ---
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const ASTRA_DB_API_ENDPOINT = process.env.ASTRA_DB_API_ENDPOINT;
-const ASTRA_DB_APPLICATION_TOKEN = process.env.ASTRA_DB_APPLICATION_TOKEN;
-const ASTRA_DB_COLLECTION = process.env.ASTRA_DB_COLLECTION;
-const ASTRA_DB_NAMESPACE = process.env.ASTRA_DB_NAMESPACE;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
+const OPENAI_MODEL_NAME = process.env.OPENAI_MODEL_NAME || 'gpt-3.5-turbo'; // Default if not set
+const ASTRA_DB_API_ENDPOINT = process.env.ASTRA_DB_API_ENDPOINT!;
+const ASTRA_DB_APPLICATION_TOKEN = process.env.ASTRA_DB_APPLICATION_TOKEN!;
+const ASTRA_DB_COLLECTION = process.env.ASTRA_DB_COLLECTION!;
+const ASTRA_DB_KEYSPACE = process.env.ASTRA_DB_KEYSPACE || process.env.ASTRA_DB_NAMESPACE!; // Prefer KEYSPACE, fallback to NAMESPACE for compatibility
 
 if (!OPENAI_API_KEY) {
-  throw new Error('Missing OPENAI_API_KEY environment variable.');
+  console.error('Missing required environment variable: OPENAI_API_KEY');
+  process.exit(1);
 }
-if (
-  !ASTRA_DB_API_ENDPOINT ||
-  !ASTRA_DB_APPLICATION_TOKEN ||
-  !ASTRA_DB_COLLECTION ||
-  !ASTRA_DB_NAMESPACE
-) {
-  throw new Error(
-    'Missing Astra DB environment variables: ASTRA_DB_API_ENDPOINT, ASTRA_DB_APPLICATION_TOKEN, ASTRA_DB_COLLECTION, or ASTRA_DB_NAMESPACE are required.',
-  );
+if (!ASTRA_DB_API_ENDPOINT || !ASTRA_DB_APPLICATION_TOKEN || !ASTRA_DB_COLLECTION || !ASTRA_DB_KEYSPACE) {
+  console.error('Missing one or more required AstraDB environment variables:');
+  if (!ASTRA_DB_API_ENDPOINT) console.error(' - ASTRA_DB_API_ENDPOINT');
+  if (!ASTRA_DB_APPLICATION_TOKEN) console.error(' - ASTRA_DB_APPLICATION_TOKEN');
+  if (!ASTRA_DB_COLLECTION) console.error(' - ASTRA_DB_COLLECTION');
+  if (!ASTRA_DB_KEYSPACE) console.error(' - ASTRA_DB_KEYSPACE (or ASTRA_DB_NAMESPACE)');
+  process.exit(1);
 }
 
 // --- OpenAI Embedding Adapter ---
 class OpenAIEmbeddingAdapter implements SDKEmbeddingModel {
-  name = 'openai-embedding-adapter';
+  public name: string; // Added to satisfy EmbeddingModel interface
   private openai: OpenAI;
   private model: string;
   public readonly dimensions: number;
 
-  constructor(apiKey: string, model = 'text-embedding-3-small') {
+  constructor(apiKey: string, modelName: string = 'text-embedding-ada-002') {
     this.openai = new OpenAI({ apiKey });
-    this.model = model;
-    if (model === 'text-embedding-3-small') {
+    this.name = modelName; // Initialize the name property
+    this.model = modelName; // Initialize this.model for generateEmbeddings
+    // Known dimensions for common OpenAI models
+    if (modelName === 'text-embedding-ada-002' || modelName === 'text-embedding-3-small') {
       this.dimensions = 1536;
-    } else if (model === 'text-embedding-3-large') {
+    } else if (modelName === 'text-embedding-3-large') {
       this.dimensions = 3072;
     } else {
-      this.dimensions = 1536; // Fallback
-      console.warn(`Warning: Unknown embedding model '${model}'. Defaulting to 1536 dimensions. Ensure this is correct.`);
+      console.warn(`Unknown dimensions for embedding model ${modelName}. Defaulting to 1536.`);
+      this.dimensions = 1536; 
     }
   }
 
@@ -74,23 +76,36 @@ async function main() {
   const embeddingModel = new OpenAIEmbeddingAdapter(OPENAI_API_KEY!); 
 
   // NOTE: The VectorStore in `../src` is currently a placeholder.
-  // It uses an in-memory store and its own placeholder OpenAIEmbeddingModel internally,
-  // regardless of the 'datastax_astra' provider setting or detailed config below.
-  // The following config aligns with the current VectorStoreConfig interface to clear lint errors,
-  // but true AstraDB integration via this VectorStore class requires enhancing `src/vector-store.ts`.
+  // The VectorStore is initialized for 'datastax_astra'.
+  // The actual AstraDB client setup (token, endpoint, collection, keyspace) happens inside the VectorStore class
+  // based on the provider and its internal handling of environment variables or a more complex config object in a real scenario.
+  // For this test, we rely on the VectorStore's current implementation which might use placeholders or simplified setup.
+  // The RAGPipeline will provide the `retrieverEmbeddingModel` which is the actual model used for generating embeddings for retrieval.
   const vectorStore = new VectorStore(
-    {
-      provider: 'datastax_astra', // This provider choice is not acted upon by the current VectorStore
-      // apiKey: OPENAI_API_KEY!, // Pass API key if VectorStoreConfig and internal model use it
+    { // Config for VectorStore
+      provider: 'datastax_astra',
+      // The actual VectorStore implementation in src/vector-store.ts will handle
+      // its own configuration for AstraDB (e.g. from env vars or a more detailed config object passed here).
+      // For the test script, we are focusing on the RAGPipeline's behavior with components.
+      // If we were to pass a full config here, it would look like:
+      token: ASTRA_DB_APPLICATION_TOKEN!,
+      endpoint: ASTRA_DB_API_ENDPOINT!,
+      collectionName: ASTRA_DB_COLLECTION!,
+      keyspace: ASTRA_DB_KEYSPACE!, 
+      embeddingDimension: embeddingModel.dimensions
     },
-    OPENAI_API_KEY! // Pass the API key string for the VectorStore's internal placeholder embedding model
+    // The second argument to VectorStore constructor (embeddingModel) is optional and used if VectorStore
+    // needs to create its own embeddings. In RAGPipeline, we provide a dedicated retrieverEmbeddingModel.
   );
+
+  console.log(`Using AstraDB Collection: ${ASTRA_DB_COLLECTION} in Keyspace: ${ASTRA_DB_KEYSPACE}`);
   // The `embeddingModel` (OpenAIEmbeddingAdapter) will be used by the RAGPipeline's Retriever for query embeddings.
 
   const llm = new LLM({
     provider: 'openai',
-    modelName: 'gpt-4o',
+    modelName: OPENAI_MODEL_NAME,
     apiKey: OPENAI_API_KEY!,
+    temperature: 0.7, // Optional: example temperature
   });
 
   const pipeline = new RAGPipeline({

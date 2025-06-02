@@ -1,60 +1,130 @@
 // src/vector-store.ts
-import { Document } from './data-loader'; // Assuming Document interface is in data-loader.ts
+import { Document } from './data-loader';
+import { DataAPIClient, Collection as AstraCollection } from '@datastax/astra-db-ts';
 
-/**
- * @interface VectorStoreConfig
- * Configuration for different vector store providers.
- */
-export interface VectorStoreConfig {
-  provider: 'in-memory' | 'pinecone' | 'datastax_astra' | 'chromadb'; // Add more providers
-  apiKey?: string;
-  environment?: string; // e.g., for Pinecone
-  // Add other relevant config options
-}
+// --- Configuration Interfaces ---
 
-/**
- * @interface EmbeddingModel
- * Represents an embedding generation model.
- */
 export interface EmbeddingModel {
   name: string;
+  dimensions?: number; // Optional: some stores need this explicitly
   generateEmbeddings(texts: string[]): Promise<number[][]>;
 }
 
-// Placeholder for a concrete embedding model (e.g., OpenAI)
-class OpenAIEmbeddingModel implements EmbeddingModel {
-  name = 'openai_ada_002'; // Example model
-  private apiKey: string;
+interface InMemoryStoreConfig {
+  provider: 'in-memory';
+}
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey; // Store API key securely
+interface AstraDBStoreConfig {
+  provider: 'datastax_astra';
+  token: string;
+  endpoint: string;
+  collectionName: string;
+  keyspace: string; // Updated from namespace
+  embeddingDimension: number; // Required for collection creation/validation
+}
+
+// Add other provider configs here (Pinecone, ChromaDB, etc.)
+// interface PineconeStoreConfig { provider: 'pinecone'; apiKey: string; environment: string; indexName: string; }
+
+export type VectorStoreConfig = InMemoryStoreConfig | AstraDBStoreConfig; // Add other configs to this union
+
+// --- Placeholder Embedding Model (for internal use or if no model is passed) ---
+// This should ideally be replaced by passing a concrete EmbeddingModel instance to VectorStore.
+class PlaceholderEmbeddingModel implements EmbeddingModel {
+  name = 'text-embedding-3-small';
+  dimensions = 1536; // Default dimension
+
+  constructor(apiKey?: string) { // apiKey is not used by placeholder but kept for signature compatibility if needed
+    if (apiKey) {
+      console.warn(
+        'PlaceholderEmbeddingModel received an API key, but it does not use it. '
+        + 'Ensure a proper EmbeddingModel is configured for real embeddings.'
+      );
+    }
   }
 
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
-    console.log(`Generating embeddings for ${texts.length} texts using ${this.name}...`);
-    // Placeholder: In a real scenario, this would call the OpenAI API
-    // For now, return dummy embeddings (e.g., array of 0s with a fixed dimension)
-    const dimension = 1536; // Example dimension for text-embedding-ada-002
-    return texts.map(text => Array(dimension).fill(0).map((_, i) => Math.random() * (i + 1) * (text.length % 10)));
+    console.warn(`Using PlaceholderEmbeddingModel to generate dummy embeddings for ${texts.length} texts.`);
+    return texts.map(text => Array(this.dimensions).fill(0).map(() => Math.random()));
   }
 }
 
-/**
- * @class VectorStore
- * Handles interaction with a vector database for storing and retrieving embeddings.
- */
+// --- VectorStore Class ---
+
 export class VectorStore {
   private config: VectorStoreConfig;
-  private store: Map<string, Document>; // Simple in-memory store for placeholder
-  private embeddingModel: EmbeddingModel; // To generate embeddings if not provided
+  private embeddingModel: EmbeddingModel;
 
-  constructor(config: VectorStoreConfig, embeddingModelApiKey?: string) {
+  // For In-Memory Store
+  private inMemoryStore?: Map<string, Document>;
+
+  // For AstraDB Store
+  private astraClient?: DataAPIClient;
+  private astraCollection?: AstraCollection;
+
+  constructor(config: VectorStoreConfig, embeddingModel?: EmbeddingModel) {
     this.config = config;
-    this.store = new Map();
-    // In a real SDK, you would instantiate the correct embedding model based on config
-    // For now, we'll use a placeholder OpenAI model if an API key is suggested
-    this.embeddingModel = new OpenAIEmbeddingModel(embeddingModelApiKey || 'dummy-key');
-    console.log(`VectorStore initialized for provider: ${config.provider}`);
+    this.embeddingModel = embeddingModel || new PlaceholderEmbeddingModel();
+
+    console.log(`VectorStore initializing for provider: ${config.provider}...`);
+
+    switch (config.provider) {
+      case 'in-memory':
+        this.inMemoryStore = new Map();
+        console.log('In-memory vector store initialized.');
+        break;
+      case 'datastax_astra':
+        try {
+          this.astraClient = new DataAPIClient(config.token);
+          const db = this.astraClient.db(config.endpoint, { keyspace: config.keyspace });
+          this.astraCollection = db.collection(config.collectionName);
+          console.log(`AstraDB vector store initialized for collection: ${config.collectionName}`);
+          // Optionally, verify collection or create if not exists (can be complex, e.g., checking dimensions)
+          // this.ensureAstraCollectionExists(config);
+        } catch (error) {
+          console.error('Failed to initialize AstraDB client:', error);
+          throw new Error(`AstraDB client initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        break;
+      // Add cases for other providers (Pinecone, ChromaDB, etc.)
+      default:
+        // Ensure exhaustive check with a little trick
+        const _exhaustiveCheck: never = config;
+        throw new Error(`Unsupported vector store provider: ${(_exhaustiveCheck as any).provider}`);
+    }
+    console.log('VectorStore initialization complete.');
+  }
+
+  // Helper to ensure Astra collection exists (optional, can be called explicitly)
+  private async ensureAstraCollectionExists(config: AstraDBStoreConfig): Promise<void> {
+    if (!this.astraCollection || !this.astraClient) {
+        throw new Error('AstraDB client not initialized for ensureAstraCollectionExists.');
+    }
+    try {
+        // Check if collection exists - DataAPIClient might not have a direct `listCollections` or `describeCollection`.
+        // A common pattern is to try a read or write and handle errors, or assume it's pre-created.
+        // For robust creation, one might need to use astra-db-ts's admin capabilities if available,
+        // or simply attempt to create it and catch 'already exists' errors.
+        console.log(`Attempting to create AstraDB collection '${config.collectionName}' if not exists (dimension: ${config.embeddingDimension})...`);
+        await this.astraClient.db(config.endpoint, { keyspace: config.keyspace }).createCollection(config.collectionName, {
+            vector: {
+                dimension: config.embeddingDimension,
+                metric: 'cosine', // Or make this configurable
+            },
+        });
+        console.log(`AstraDB collection '${config.collectionName}' ensured/created.`);
+    } catch (e: any) {
+        // It's common for createCollection to throw an error if it already exists with a compatible or incompatible schema.
+        // Error messages/codes from AstraDB would need to be inspected to differentiate.
+        if (e.message && (e.message.includes('already exists') || e.message.includes('E11000 duplicate key error'))) {
+            console.log(`AstraDB collection '${config.collectionName}' already exists.`);
+            // Here you might want to verify if the existing collection's dimension matches config.embeddingDimension.
+            // This is a more advanced check and might require specific AstraDB API calls not directly in DataAPIClient's basic ops.
+        } else {
+            console.error(`Error ensuring/creating AstraDB collection '${config.collectionName}':`, e);
+            throw e; // Re-throw if it's not an 'already exists' type of error
+        }
+    }
   }
 
   /**
@@ -63,19 +133,57 @@ export class VectorStore {
    * @param embeddingModelName Optional: name of the embedding model to use if not pre-embedded.
    * @returns Promise<void>
    */
-  async addDocuments(documents: Document[], embeddingModelName?: string): Promise<void> {
+  async addDocuments(documents: Document[]): Promise<void> {
+    if (documents.length === 0) return;
     console.log(`Adding ${documents.length} documents to ${this.config.provider} store...`);
+
+    const docsToEmbed = documents.filter(doc => !doc.embedding && doc.content);
+    if (docsToEmbed.length > 0) {
+      console.log(`Generating embeddings for ${docsToEmbed.length} documents using ${this.embeddingModel.name}...`);
+      const contents = docsToEmbed.map(doc => doc.content);
+      const embeddings = await this.embeddingModel.generateEmbeddings(contents);
+      docsToEmbed.forEach((doc, index) => {
+        doc.embedding = embeddings[index];
+      });
+    }
+
     for (const doc of documents) {
       if (!doc.embedding) {
-        // If a specific model is requested for this operation, one might instantiate it here
-        // For simplicity, we use the one configured in the constructor.
-        console.log(`Generating embedding for document ID: ${doc.id}`);
-        const [embedding] = await this.embeddingModel.generateEmbeddings([doc.content]);
-        doc.embedding = embedding;
+        console.warn(`Document ID ${doc.id} is missing content or failed to generate embedding. Skipping.`);
+        continue;
       }
-      this.store.set(doc.id, doc);
     }
-    console.log(`${documents.length} documents added and embedded.`);
+
+    switch (this.config.provider) {
+      case 'in-memory':
+        if (!this.inMemoryStore) throw new Error('In-memory store not initialized.');
+        for (const doc of documents) {
+          if (doc.embedding) this.inMemoryStore.set(doc.id, doc);
+        }
+        break;
+      case 'datastax_astra':
+        if (!this.astraCollection) throw new Error('AstraDB collection not initialized.');
+        const astraDocs = documents
+          .filter(doc => doc.embedding) // Ensure embedding exists
+          .map(doc => ({
+            _id: doc.id, // AstraDB uses _id by default
+            text: doc.content,
+            $vector: doc.embedding,
+            ...(doc.metadata && { metadata: doc.metadata }), // Spread metadata if it exists
+          }));
+        if (astraDocs.length > 0) {
+          // Consider batching for very large arrays of documents
+          const result = await this.astraCollection.insertMany(astraDocs);
+          console.log(`Inserted ${result.insertedCount} documents into AstraDB. IDs: ${JSON.stringify(result.insertedIds)}`);
+        } else {
+          console.log('No documents with embeddings to insert into AstraDB.');
+        }
+        break;
+      default:
+        const _exhaustiveCheck: never = this.config;
+        throw new Error(`Unsupported provider for addDocuments: ${(_exhaustiveCheck as any).provider}`);
+    }
+    console.log(`${documents.length} documents processed for addition.`);
   }
 
   /**
@@ -86,16 +194,40 @@ export class VectorStore {
    */
   async similaritySearch(queryEmbedding: number[], topK: number): Promise<Document[]> {
     console.log(`Performing similarity search in ${this.config.provider} store for top ${topK} results...`);
-    // Placeholder for actual similarity search logic
-    // For an in-memory store, this would involve:
-    // 1. Iterating through all documents in this.store
-    // 2. Calculating cosine similarity between queryEmbedding and each doc.embedding
-    // 3. Sorting by similarity and returning topK
 
-    // Dummy implementation: returns the first topK documents or all if fewer
-    const results = Array.from(this.store.values()).slice(0, topK);
-    console.log(`Found ${results.length} results.`);
-    return results;
+    switch (this.config.provider) {
+      case 'in-memory':
+        if (!this.inMemoryStore) throw new Error('In-memory store not initialized.');
+        // Basic in-memory search (can be improved with actual cosine similarity)
+        const allDocs = Array.from(this.inMemoryStore.values());
+        // This is a placeholder: real in-memory search needs cosine similarity calculation and sorting.
+        // For now, it just returns the first topK docs like the original placeholder.
+        console.warn('In-memory similarity search is using placeholder logic (returns first K docs).');
+        return allDocs.slice(0, topK);
+
+      case 'datastax_astra':
+        if (!this.astraCollection) throw new Error('AstraDB collection not initialized.');
+        const cursor = this.astraCollection.find(
+          {},
+          {
+            sort: { $vector: queryEmbedding },
+            limit: topK,
+            projection: { $vector: 0 }, // Exclude the $vector field from the results to save bandwidth if not needed
+          },
+        );
+        const astraResults = await cursor.toArray();
+        return astraResults.map(astraDoc => ({
+          id: astraDoc._id as string,
+          content: astraDoc.text as string,
+          // Embedding is not returned by default with projection: { $vector: 0 }
+          // embedding: astraDoc.$vector as number[], // Only if $vector is not projected out
+          metadata: astraDoc.metadata as Record<string, any> | undefined,
+        }));
+
+      default:
+        const _exhaustiveCheck: never = this.config;
+        throw new Error(`Unsupported provider for similaritySearch: ${(_exhaustiveCheck as any).provider}`);
+    }
   }
 
   // Add other methods like:
